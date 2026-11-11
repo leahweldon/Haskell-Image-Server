@@ -1,0 +1,45 @@
+name: haskell-image-server
+version: 0.1.0.0
+synopsis: A Haskell drawing DSL and browser gallery powered by Scotty and JuicyPixels
+category: Graphics
+license: BSD-3-Clause
+author: Leah Weldon
+copyright: "2024 Leah Weldon"
+
+extra-source-files:
+  - README.md
+  - static/css/style.css
+
+dependencies:
+  - base >= 4.17 && < 5
+  - JuicyPixels
+  - blaze-html
+  - scotty
+  - text
+  - directory
+
+ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Widentities
+  - -Wincomplete-uni-patterns
+
+library:
+  source-dirs: src
+
+executables:
+  haskell-image-server-exe:
+    main: Main.hs
+    source-dirs: app
+    dependencies:
+      - haskell-image-server
+    ghc-options:
+      - -threaded
+      - -rtsopts
+
+tests:
+  haskell-image-server-test:
+    main: Spec.hs
+    source-dirs: test
+    dependencies:
+      - haskell-image-server

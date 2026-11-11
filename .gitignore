@@ -1,0 +1,12 @@
+.stack-work/
+dist-newstyle/
+.cabal-sandbox/
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+.DS_Store
+**/.DS_Store
+.vscode/
+.idea/
+generated/
