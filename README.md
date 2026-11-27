@@ -1,64 +1,89 @@
 # Haskell Image Server
 
-**A declarative drawing language, a raster rendering engine, and a web gallery - built in Haskell.**
+**A drawing language embedded in Haskell, a raster renderer with alpha compositing, and a web gallery that shows each picture next to the code that drew it.**
 
+[![Haskell CI](https://github.com/leahweldon/Haskell-Image-Server/actions/workflows/ci.yml/badge.svg)](https://github.com/leahweldon/Haskell-Image-Server/actions/workflows/ci.yml)
 [![Haskell](https://img.shields.io/badge/Haskell-GHC%209.6.6-5D4F85?logo=haskell&logoColor=white)](https://www.haskell.org/ghc/)
 [![Stack](https://img.shields.io/badge/Build-Stack-304862)](https://docs.haskellstack.org/)
 [![License](https://img.shields.io/badge/License-BSD--3--Clause-304862)](LICENSE)
 
-A functional graphics application developed for **CSU44012 - Topics in Functional Programming** at **Trinity College Dublin (2024–2025)**. It uses an embedded domain-specific language (eDSL) to describe shapes, colours, affine transformations and drawing composition, renders them as RGBA PNG images using **JuicyPixels**, and serves an interactive gallery with **Scotty** and **Blaze HTML**.
+<p align="center">
+  <img src="docs/showcase/rosette.gif" alt="Twelve translucent ellipses turning around a centre point" width="400">
+</p>
 
-## Gallery
+<p align="center"><em>Twelve translucent ellipses, each one rotated, coloured and blended by the renderer in this repository. 120 frames, one full turn.</em></p>
 
-These are preserved image outputs from the original coursework project.
+Built for **CSU44012 Topics in Functional Programming** at **Trinity College Dublin (2024–25)**. Pictures are written as ordinary Haskell values: shapes, affine transformations and RGBA colours. A renderer turns them into PNG images with **JuicyPixels**, and a **Scotty** server with **Blaze HTML** presents them as a gallery.
+
+## Highlights
+
+- **Drawing as data:** a picture is a list of `(Transform, Shape, Color)` values, so scenes are built with `map`, list comprehensions and plain functions.
+- **Full 2D affine toolkit:** translate, rotate, scale and shear, composed with a single `<+>` operator and inverted exactly during rendering.
+- **Any polygon:** an even-odd fill rule handles concave shapes such as stars.
+- **Real transparency:** overlapping colours are blended with Porter–Duff source-over compositing.
+- **Tested in CI:** nearly 40 checks covering geometry, transforms and their inverses, layering, pixel mapping and PNG output run on every push.
+
+## Showcase
+
+Both images below are produced by [`examples/Showcase.hs`](examples/Showcase.hs), which uses nothing beyond the drawing language and renderer.
+
+| Rosette | Overlapping stars |
+|:---:|:---:|
+| ![Rosette of twelve translucent ellipses](docs/showcase/rosette.png) | ![Three translucent five-pointed stars overlapping](docs/showcase/stars.png) |
+| Rotation and source-over blending | Concave polygons, scaling and blending |
+
+The whole rosette is one list comprehension:
+
+```haskell
+rosette :: Double -> Drawing
+rosette turn =
+  [ ( translate (point 1.5 0) <+> rotate angle
+    , ellipse 3 1
+    , hue 120 angle
+    )
+  | k <- [0 .. 11 :: Int]
+  , let angle = turn + 30 * fromIntegral k
+  ]
+```
+
+Each petal is an ellipse pushed out from the centre and then rotated into place, with its colour picked from a colour wheel at alpha 120 so that overlapping petals mix. The animation calls `rosette` with a slightly larger `turn` for every frame.
+
+## The Gallery
+
+![The gallery page served by the application](docs/screenshots/gallery.png)
+
+Running the server renders 17 examples and serves them on one page, each card showing the image, what it demonstrates and the exact expression that produced it.
+
+![Gallery cards with each image and its Haskell expression](docs/screenshots/gallery-cards.png)
 
 | Circle | Polygon | Rotated ellipse | Sheared rectangle |
 |:---:|:---:|:---:|:---:|
 | ![Magenta circle](docs/gallery/circle.png) | ![Green triangle](docs/gallery/polygon.png) | ![Purple rotated ellipse](docs/gallery/rotatedEllipse.png) | ![Blue sheared rectangle](docs/gallery/shearedRectangle.png) |
+| `circle` | `polygon [...]` | `rotate 30` | `shear 0.5` |
 
-| Overlapping shapes | Horizontal composition | Vertical composition | Translated circle |
+| Circle over rectangle | Polygon left of rectangle | Rectangle below ellipse | Translucent layers |
 |:---:|:---:|:---:|:---:|
-| ![Circle over rectangle](docs/gallery/circleOverRectangle.png) | ![Polygon left of rectangle](docs/gallery/polygonLeftOfRectangle.png) | ![Rectangle below ellipse](docs/gallery/rectangleBelowEllipse.png) | ![Orange translated circle](docs/gallery/translatedCircle.png) |
+| ![Circle over rectangle](docs/gallery/circleOverRectangle.png) | ![Polygon left of rectangle](docs/gallery/polygonLeftOfRectangle.png) | ![Rectangle below ellipse](docs/gallery/rectangleBelowEllipse.png) | ![Translucent circle over rectangle](docs/gallery/colourLayers.png) |
+| `over` | `left` | `below` | `switchingLayer 128` |
 
-All **16 preserved PNG examples** are available in [`docs/gallery/`](docs/gallery/). The web application renders its examples when launched; generated files are written to the ignored `generated/` directory.
+All 17 rendered examples are in [`docs/gallery/`](docs/gallery/).
 
-## Features
-
-- **Typed geometric primitives:** circles, aspect-ratio rectangles, ellipses, polygons and empty shapes.
-- **Composable transformations:** translation, rotation, anisotropic scaling, shearing and ordered transformation composition.
-- **Declarative drawings:** each scene is a list of transformed shapes with RGBA colours.
-- **Layering:** front-to-back drawing order and source-over alpha compositing.
-- **Raster rendering:** world-to-pixel coordinate mapping and PNG export using JuicyPixels.
-- **Web gallery:** a responsive gallery of 17 examples, including the underlying Haskell expressions.
-- **HTTP image delivery:** Scotty routes for the gallery, stylesheet and whitelisted PNG examples.
-- **Automated checks:** geometry, inverse transforms, polygon boundaries, layering, coordinate mapping and PNG output tests.
-
-## Architecture
+## How It Works
 
 ```mermaid
 flowchart LR
     A[Drawing eDSL] --> B[Shapes and transformations]
-    B --> C[Coordinate sampling and compositing]
+    B --> C[Inverse mapping and compositing]
     C --> D[JuicyPixels PNG renderer]
-    D --> E[Scotty HTTP endpoints]
+    D --> E[Scotty HTTP routes]
     E --> F[Blaze HTML gallery]
 ```
 
-| Component | Responsibility |
-|---|---|
-| [`src/Shapes.hs`](src/Shapes.hs) | Drawing data types, shape membership, transformation algebra, colour composition |
-| [`src/Render.hs`](src/Render.hs) | Pixel sampling, coordinate conversion, grayscale and RGBA PNG output |
-| [`app/Main.hs`](app/Main.hs) | Example scenes, relative positioning operators, image generation and HTTP routes |
-| [`static/css/style.css`](static/css/style.css) | Responsive gallery design and image presentation |
-| [`test/Spec.hs`](test/Spec.hs) | Deterministic geometry, transformation, layering and PNG rendering tests |
-| [`docs/gallery/`](docs/gallery/) | Preserved images generated for the coursework |
-| [`docs/Project-Report.pdf`](docs/Project-Report.pdf) | Original academic report, design rationale and implementation discussion |
-
-### Drawing as data
-
-A drawing is represented as a list of `(Transform, Shape, Color)` triples:
+### Drawing as Data
 
 ```haskell
+type Drawing = [(Transform, Shape, Color)]
+
 example :: Drawing
 example =
   [ (rotate 30 <+> translate (point 2 0), ellipse 2 1, Color 180 90 240 180)
@@ -66,88 +91,77 @@ example =
   ]
 ```
 
-The first entry is the foreground layer. Because a drawing is ordinary Haskell data, shapes and transformations can be composed without tying the description to a particular rendering backend.
+The first entry is the front layer. Because a drawing is just data, composition operators such as `over`, `left` and `above` are short list functions, and the same description could be handed to a different backend.
 
-### Coordinate systems and transformations
+### Rendering by Inverse Transformation
 
-The scene is described in a mathematical coordinate space with the positive y-axis pointing upwards. Raster coordinates instead begin at the top-left corner of an image. The renderer converts each output pixel into world coordinates before evaluating the drawing.
+Scenes live in a mathematical coordinate space with y pointing up, while image pixels start at the top-left corner. For every output pixel the renderer:
 
-Shape transformations are composed in their written order. During rasterisation, the corresponding inverse transformation maps world-space sample points into local shape coordinates. This keeps translation, rotation, scale and shear consistent with how the eDSL describes each drawing.
+1. converts the pixel to a world-space point;
+2. applies the **inverse** of each shape's transformation to move that point into the shape's own unit space;
+3. tests membership against the simple unit shape (`x² + y² ≤ 1` for a circle, for example);
+4. blends the colours of every shape that contains the point, back to front.
 
-Rotations use **degrees**. Rectangles and ellipses are defined using an aspect ratio: the second dimension acts as the reference height.
+Testing in local space keeps every shape definition tiny: a rotated, sheared, scaled ellipse needs no special geometry, only an inverted transform.
 
-### Alpha compositing
+```haskell
+inverseTransform :: Transform -> Point -> Maybe Point
+inverseTransform (Compose first second) p =
+  inverseTransform second p >>= inverseTransform first
+```
 
-Shapes carry RGBA colours. Overlapping shapes use **source-over alpha compositing**, preserving transparency and blending the foreground and background contributions. Empty pixels remain transparent.
+A transform that cannot be inverted, such as a zero scale, returns `Nothing`, and the shape simply draws nothing.
+
+### Alpha Compositing
+
+Colours are non-premultiplied RGBA. Where shapes overlap, `sourceOver` combines them with the standard Porter–Duff formula, so a half-transparent red circle over a blue rectangle comes out purple, and uncovered pixels stay fully transparent.
+
+### Project Layout
+
+| Component | Responsibility |
+|---|---|
+| [`src/Shapes.hs`](src/Shapes.hs) | Shapes, transformations and their inverses, polygon fill, colours and compositing |
+| [`src/Render.hs`](src/Render.hs) | Pixel-to-world mapping, per-pixel sampling and PNG output |
+| [`app/Main.hs`](app/Main.hs) | The 17 gallery examples, layout operators and HTTP routes |
+| [`examples/Showcase.hs`](examples/Showcase.hs) | Larger scenes and the animation frames |
+| [`static/css/style.css`](static/css/style.css) | Gallery styling |
+| [`test/Spec.hs`](test/Spec.hs) | Geometry, transform, layering and rendering tests |
+| [`docs/Project-Report.pdf`](docs/Project-Report.pdf) | Project report with design rationale |
 
 ## Build and Run
 
-### Requirements
-
-- [Haskell Stack](https://docs.haskellstack.org/en/stable/) installed and on your `PATH`.
-- Internet access for Stack's initial compiler and package downloads.
-- A modern browser to view the gallery.
-
-The project uses **Stackage LTS 22.43 / GHC 9.6.6**, declared in [`stack.yaml`](stack.yaml), and the dependencies listed in [`package.yaml`](package.yaml).
-
-### 1. Clone the repository
+Requires [Haskell Stack](https://docs.haskellstack.org/en/stable/). The project uses **Stackage LTS 22.43 (GHC 9.6.6)**; the first build downloads the compiler and libraries.
 
 ```bash
 git clone https://github.com/leahweldon/Haskell-Image-Server.git
 cd Haskell-Image-Server
-```
 
-### 2. Build
-
-```bash
 stack build
-```
-
-### 3. Run
-
-```bash
 stack exec haskell-image-server-exe
 ```
 
-Open **http://localhost:3000**. The application generates PNG files in `generated/`, then serves the gallery and individual image endpoints. Run the command from the repository root so the stylesheet path resolves correctly.
+Open **http://localhost:3000**. The server renders every example into `generated/` before it starts listening, then serves the gallery. Run it from the repository root so it can find the stylesheet, and stop it with **Ctrl+C**.
 
-Stop the local server with `Ctrl+C`.
-
-### 4. Run automated tests
+### Tests and Showcase
 
 ```bash
-stack test
+stack test                             # geometry, transforms, layering and PNG output
+stack exec showcase                    # writes docs/showcase/rosette.png and stars.png
+stack exec showcase -- frames frames   # writes the 120 animation frames to frames/
 ```
 
-The tests exercise the pure drawing engine and write/read a small RGBA PNG. A browser is not required for the test suite.
-
-## Application Routes
+## Routes
 
 | Route | Response |
 |---|---|
-| `/` | Gallery with all drawing examples and their Haskell expressions |
-| `/style.css` | Stylesheet for the gallery |
-| `/images/circle.png` | Circle example PNG |
-| `/images/rotatedEllipse.png` | Rotated ellipse PNG |
-| `/images/colourLayers.png` | Translucent overlap PNG |
+| `/` | Gallery of all 17 examples with their Haskell expressions |
+| `/style.css` | Gallery stylesheet |
+| `/images/<name>.png` | One rendered example, for instance `/images/colourLayers.png` |
 
-The image endpoint accepts only names from the application's example collection.
+Image requests are matched against the example list, so only the gallery's own images are served.
 
-## Project Documentation
-
-The [original project report](docs/Project-Report.pdf) explains the assignment's objectives, drawing representation, affine transformations, colour modelling, relative positioning, rendering approach and web interface.
-
-The project demonstrates how **functional composition** can express graphical scenes declaratively, while a separate interpreter handles pixel generation and HTTP presentation.
-
-## Academic Context
-
-**Institution:** Trinity College Dublin  
-**Module:** CSU44012 - Topics in Functional Programming  
-**Project:** Project 1 - Image Server  
-**Academic year:** 2024-2025  
-**Developer:** Leah Weldon  
-**Language:** Haskell
+The [project report](docs/Project-Report.pdf) covers the drawing representation, affine transformations, colour model, relative positioning, rendering approach and web interface in more depth.
 
 ## License
 
-[BSD 3-Clause License](LICENSE).
+Distributed under the [BSD 3-Clause License](LICENSE).

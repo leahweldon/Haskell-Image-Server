@@ -36,6 +36,13 @@ executables:
     ghc-options:
       - -threaded
       - -rtsopts
+  showcase:
+    main: Showcase.hs
+    source-dirs: examples
+    dependencies:
+      - haskell-image-server
+    ghc-options:
+      - -O2
 
 tests:
   haskell-image-server-test:
